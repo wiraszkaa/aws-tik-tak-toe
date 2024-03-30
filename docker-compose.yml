@@ -7,17 +7,17 @@ services:
       dockerfile: Dockerfile
     container_name: backend
     ports:
-      - "4000:4000"
+      - "8080:8080"
     env_file: ./backend/.env
     environment:
-      - PORT=4000
+      - PORT=8080
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        - WS_URL=ws://localhost:4000
+        - WS_URL=ws://localhost:8080
     container_name: frontend
     ports:
       - "80:80"
