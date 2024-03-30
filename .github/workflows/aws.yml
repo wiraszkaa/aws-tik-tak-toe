@@ -1,0 +1,48 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  check-and-install-docker:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: SSH into EC2 instance
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}  # EC2 instance public IP or hostname
+        username: ${{ secrets.EC2_USERNAME }}  # SSH username
+        key: ${{ secrets.SSH_PRIVATE_KEY }}  # SSH private key
+        script: |
+          docker --version || (
+            sudo apt-get update &&
+            sudo apt-get install -y apt-transport-https ca-certificates curl software-properties-common &&
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add - &&
+            sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" &&
+            sudo apt-get update &&
+            sudo apt-get install -y docker-ce
+          )
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: SCP Code to EC2
+      run: |
+        scp -i ${{ secrets.SSH_PRIVATE_KEY }} -r ./ ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/app
+
+    - name: SSH into EC2 instance
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}  # EC2 instance public IP or hostname
+        username: ${{ secrets.EC2_USERNAME }}  # SSH username
+        key: ${{ secrets.SSH_PRIVATE_KEY }}  # SSH private key
+        script: |
+          cd ~/app &&
+          docker-compose build
+          docker-compose up
