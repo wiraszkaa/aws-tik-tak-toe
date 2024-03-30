@@ -34,8 +34,13 @@ jobs:
         uses: actions/checkout@v2
 
       - name: SCP Code to EC2
-        run: |
-          scp -i ${{ secrets.SSH_PRIVATE_KEY }} -r ./ ${{ secrets.EC2_USERNAME }}@${{ secrets.EC2_HOST }}:~/app
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "./"
+          target: ~/app
 
       - name: SSH into EC2 instance
         uses: appleboy/ssh-action@master
