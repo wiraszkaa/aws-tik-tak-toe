@@ -51,4 +51,4 @@ jobs:
           script: |
             cd ~/app &&
             docker-compose build &&
-            docker-compose up --detach
+            EC2_HOST=${{ secrets.EC2_HOST }} docker-compose up --detach
