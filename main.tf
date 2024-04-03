@@ -18,8 +18,8 @@ resource "local_file" "TF-key" {
 }
 
 resource "aws_instance" "tik-tak-toe_ec2" {
-  ami           = "ami-0c101f26f147fa7fd" // i. Select an appropriate AMI
-  instance_type = "t2.nano"               // ii. Choose the EC2 instance type
+  ami           = "ami-0c101f26f147fa7fd" 
+  instance_type = "t2.nano"               
 
   tags = {
     Name     = "tik-tak-toe EC2 instance"
@@ -27,12 +27,10 @@ resource "aws_instance" "tik-tak-toe_ec2" {
     Backend  = "Node.js"
   }
 
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id] // iii. Assign a security group
+  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
 
-  // ii. Define or use existing subnets
   subnet_id = aws_subnet.ec2_public.id
 
-  // iii. Configure an internet gateway
   depends_on                  = [aws_internet_gateway.ec2_igw]
   associate_public_ip_address = true
 
@@ -48,35 +46,35 @@ resource "aws_security_group" "ec2_sg" {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] // i. Define rules for incoming traffic
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] // i. Define
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] // i. Define rules for incoming traffic
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   ingress {
     from_port   = 8080
     to_port     = 8080
     protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"] // i. Define rules for incoming traffic
+    cidr_blocks = ["0.0.0.0/0"]
   }
 
   egress {
     from_port   = 0
     to_port     = 0
     protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"] // ii. Define rules for outgoing traffic
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -98,7 +96,7 @@ resource "aws_route_table" "ec2_rt" {
   vpc_id = aws_vpc.ec2_vpc.id
 
   route {
-    cidr_block = "0.0.0.0/0" // <- includes all ipv4 addresses
+    cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.ec2_igw.id
   }
 }
