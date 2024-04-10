@@ -17,30 +17,124 @@ resource "local_file" "TF-key" {
     filename = "ec2_rsa"
 }
 
-resource "aws_instance" "tik-tak-toe_ec2" {
-  ami           = "ami-0c101f26f147fa7fd" 
-  instance_type = "t2.nano"               
-
-  tags = {
-    Name     = "tik-tak-toe EC2 instance"
-    Frontend = "React.js"
-    Backend  = "Node.js"
-  }
-
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
-
-  subnet_id = aws_subnet.ec2_public.id
-
-  depends_on                  = [aws_internet_gateway.ec2_igw]
-  associate_public_ip_address = true
-
-  key_name = aws_key_pair.ec2_kp.id
+resource "aws_elastic_beanstalk_application" "frontend_app" {
+  name        = "tik-tak-toe-frontend"
+  description = "Frontend Application"
 }
 
-resource "aws_security_group" "ec2_sg" {
+resource "aws_elastic_beanstalk_environment" "frontend_env" {
+  name                = "frontend-env"
+  application         = aws_elastic_beanstalk_application.frontend_app.name
+  solution_stack_name = "64bit Amazon Linux 2 v5.4.5 running Node.js 14"
+  cname_prefix        = "frontend"
+
+  setting {
+    namespace = "aws:autoscaling:launchconfiguration"
+    name      = "InstanceType"
+    value     = "t2.nano"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "EnvironmentType"
+    value     = "SingleInstance"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "ServiceRole"
+    value     = "aws-elasticbeanstalk-service-role"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "SecurityGroups"
+    value     = aws_security_group.frontend_sg.id
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "Subnets"
+    value     = aws_subnet.ec2_public.id
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "AssociatePublicIpAddress"
+    value     = "true"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "KeyName"
+    value     = aws_key_pair.ec2_kp.id
+  }
+}
+
+resource "aws_elastic_beanstalk_application" "backend_app" {
+  name        = "tik-tak-toe-backend"
+  description = "Backend Application"
+}
+
+resource "aws_elastic_beanstalk_environment" "backend_env" {
+  name                = "backend-env"
+  application         = aws_elastic_beanstalk_application.backend_app.name
+  solution_stack_name = "64bit Amazon Linux 2 v5.4.5 running Node.js 14"
+  cname_prefix        = "backend"
+
+  setting {
+    namespace = "aws:autoscaling:launchconfiguration"
+    name      = "InstanceType"
+    value     = "t2.nano"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "EnvironmentType"
+    value     = "SingleInstance"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "ServiceRole"
+    value     = "aws-elasticbeanstalk-service-role"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "EnvironmentVariables"
+    value     = "PORT=8080"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "SecurityGroups"
+    value     = aws_security_group.backend_sg.id
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "Subnets"
+    value     = aws_subnet.ec2_public.id
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "AssociatePublicIpAddress"
+    value     = "true"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:environment"
+    name      = "KeyName"
+    value     = aws_key_pair.ec2_kp.id
+  }
+}
+
+resource "aws_security_group" "frontend_sg" {
   vpc_id      = aws_vpc.ec2_vpc.id
-  name        = "ec2_instance_security_group"
-  description = "Security Group for Tik Tak Toe EC2 Instance"
+  name        = "frontend-instance-security-group"
+  description = "Security Group for Frontend Elastic Beanstalk Environment"
 
   ingress {
     from_port   = 80
@@ -50,18 +144,24 @@ resource "aws_security_group" "ec2_sg" {
   }
 
   ingress {
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
+    from_port = 22
+    to_port   = 22
+    protocol  = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
+
+resource "aws_security_group" "backend_sg" {
+  vpc_id      = aws_vpc.ec2_vpc.id
+  name        = "backend-instance-security-group"
+  description = "Security Group for Backend Elastic Beanstalk Environment"
 
   ingress {
     from_port   = 8080
