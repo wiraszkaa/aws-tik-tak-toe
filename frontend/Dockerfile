@@ -18,4 +18,7 @@ EXPOSE 80
 COPY --from=development /app/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=development /app/dist /usr/share/nginx/html
 
+COPY env.sh /docker-entrypoint.d/env.sh
+RUN chmod +x /docker-entrypoint.d/env.sh
+
 CMD ["nginx", "-g", "daemon off;"]

@@ -1,3 +1,4 @@
 *.tfstate*
-ec2_rsa
+*_rsa
 .terraform*
+*.zip
