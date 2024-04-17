@@ -113,7 +113,7 @@ resource "aws_elastic_beanstalk_application" "frontend_app" {
 resource "aws_elastic_beanstalk_environment" "frontend_env" {
   name                = "frontend-env"
   application         = aws_elastic_beanstalk_application.frontend_app.name
-  solution_stack_name = "64bit Amazon Linux 2023 v4.3.0 running Docker"
+  solution_stack_name = "64bit Amazon Linux 2023 v6.1.2 running Node.js 20"
   cname_prefix        = "tik-tak-toe-frontend"
   version_label       = aws_elastic_beanstalk_application_version.frontend_app_version.name
 
@@ -163,6 +163,18 @@ resource "aws_elastic_beanstalk_environment" "frontend_env" {
     namespace = "aws:ec2:vpc"
     name      = "AssociatePublicIpAddress"
     value     = "True"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "PORT"
+    value     = "80"
+  }
+
+  setting {
+    namespace = "aws:elasticbeanstalk:application:environment"
+    name      = "VITE_WS_URL"
+    value     = "ws://54.147.161.150:4000"
   }
 }
 
