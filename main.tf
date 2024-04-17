@@ -216,8 +216,8 @@ resource "aws_ecs_task_definition" "tik-tak-toe-frontend_task" {
 
   family                   = "tik-tak-toe-frontend-task"
   execution_role_arn       = "arn:aws:iam::058264464411:role/LabRole"
-  cpu                      = "256"
-  memory                   = "512"
+  cpu                      = "1024"
+  memory                   = "2048"
   network_mode             = "awsvpc"
   requires_compatibilities = ["FARGATE"]
 
@@ -225,8 +225,8 @@ resource "aws_ecs_task_definition" "tik-tak-toe-frontend_task" {
     {
       name      = "tik-tak-toe-frontend-container"
       image     = join(":", [aws_ecr_repository.tik-tak-toe-frontend-repo.repository_url, "latest"])
-      cpu       = 256
-      memory    = 512
+      cpu       = 1024
+      memory    = 2048
       essential = true
       environment = [
         {
