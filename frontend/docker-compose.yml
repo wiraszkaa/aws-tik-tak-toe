@@ -1,0 +1,9 @@
+services:
+  web:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_WS_URL=${VITE_WS_URL}
+    env_file:
+      - .env

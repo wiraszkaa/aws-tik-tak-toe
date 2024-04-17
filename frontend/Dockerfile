@@ -1,6 +1,6 @@
 FROM node:18-alpine as development
-ARG WS_URL=ws://localhost:4000
-ENV VITE_WS_URL=$WS_URL
+ARG VITE_WS_URL=ws://localhost:4000
+ENV VITE_WS_URL=$VITE_WS_URL
 
 WORKDIR /app
 
@@ -17,5 +17,8 @@ EXPOSE 80
 
 COPY --from=development /app/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=development /app/dist /usr/share/nginx/html
+
+COPY env.sh /docker-entrypoint.d/env.sh
+RUN chmod +x /docker-entrypoint.d/env.sh
 
 CMD ["nginx", "-g", "daemon off;"]
