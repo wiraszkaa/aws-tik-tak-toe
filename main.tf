@@ -2,45 +2,38 @@ provider "aws" {
   region = "us-east-1"
 }
 
-resource "aws_key_pair" "ec2_kp" {
-    key_name = "ec2_keypair"
-    public_key = tls_private_key.rsa.public_key_openssh
+resource "aws_vpc" "fg_vpc" {
+  cidr_block = "10.0.0.0/16"
 }
 
-resource "tls_private_key" "rsa" {
-  algorithm = "RSA"
-  rsa_bits  = 4096
+resource "aws_subnet" "fg_public" {
+  vpc_id            = aws_vpc.fg_vpc.id
+  cidr_block        = "10.0.0.0/24"
+  availability_zone = "us-east-1a"
 }
 
-resource "local_file" "TF-key" {
-    content  = tls_private_key.rsa.private_key_pem
-    filename = "ec2_rsa"
+resource "aws_internet_gateway" "fg_igw" {
+  vpc_id = aws_vpc.fg_vpc.id
 }
 
-resource "aws_instance" "tik-tak-toe_ec2" {
-  ami           = "ami-0c101f26f147fa7fd" 
-  instance_type = "t2.nano"               
+resource "aws_route_table" "fg_rt" {
+  vpc_id = aws_vpc.fg_vpc.id
 
-  tags = {
-    Name     = "tik-tak-toe EC2 instance"
-    Frontend = "React.js"
-    Backend  = "Node.js"
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.fg_igw.id
   }
-
-  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
-
-  subnet_id = aws_subnet.ec2_public.id
-
-  depends_on                  = [aws_internet_gateway.ec2_igw]
-  associate_public_ip_address = true
-
-  key_name = aws_key_pair.ec2_kp.id
 }
 
-resource "aws_security_group" "ec2_sg" {
-  vpc_id      = aws_vpc.ec2_vpc.id
-  name        = "ec2_instance_security_group"
-  description = "Security Group for Tik Tak Toe EC2 Instance"
+resource "aws_route_table_association" "subnet_association" {
+  subnet_id      = aws_subnet.fg_public.id
+  route_table_id = aws_route_table.fg_rt.id
+}
+
+resource "aws_security_group" "fg_sg" {
+  vpc_id      = aws_vpc.fg_vpc.id
+  name        = "fg_instance_security_group"
+  description = "Security Group for Tik Tak Toe Instance"
 
   ingress {
     from_port   = 80
@@ -78,30 +71,134 @@ resource "aws_security_group" "ec2_sg" {
   }
 }
 
-resource "aws_vpc" "ec2_vpc" {
-  cidr_block = "10.0.0.0/24"
+resource "aws_ecr_repository" "repo" {
+  name = "ecr-repo"
 }
 
-resource "aws_subnet" "ec2_public" {
-  vpc_id            = aws_vpc.ec2_vpc.id
-  cidr_block        = "10.0.0.0/28"
-  availability_zone = "us-east-1a"
-}
+data "aws_caller_identity" "current" {}
 
-resource "aws_internet_gateway" "ec2_igw" {
-  vpc_id = aws_vpc.ec2_vpc.id
-}
-
-resource "aws_route_table" "ec2_rt" {
-  vpc_id = aws_vpc.ec2_vpc.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.ec2_igw.id
+resource "null_resource" "authenticate_docker" {
+  provisioner "local-exec" {
+    command = "aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${aws_caller_identity.current.account_id}.dkr.ecr.us-east-1.amazonaws.com"
   }
 }
 
-resource "aws_route_table_association" "subnet_association" {
-  subnet_id      = aws_subnet.ec2_public.id
-  route_table_id = aws_route_table.ec2_rt.id
+resource "null_resource" "push_frontend_image" {
+  depends_on = [null_resource.authenticate_docker]
+
+  provisioner "local-exec" {
+    command = <<EOF
+      docker build -t ${aws_ecr_repository.repo.repository_url}/tik-tak-toe-frontend:latest .
+      docker push ${aws_ecr_repository.repo.repository_url}/tik-tak-toe-frontend:latest
+    EOF
+  }
+}
+
+resource "null_resource" "push_backend_image" {
+  depends_on = [null_resource.authenticate_docker]
+
+  provisioner "local-exec" {
+    command = <<EOF
+      docker build -t ${aws_ecr_repository.repo.repository_url}/tik-tak-toe-backend:latest .
+      docker push ${aws_ecr_repository.repo.repository_url}/tik-tak-toe-backend:latest
+    EOF
+  }
+}
+
+resource "aws_ecs_task_definition" "tik-tak-toe-backend_task" {
+  depends_on = [null_resource.push_backend_image]
+
+  family                   = "tik-tak-toe-backend-task"
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+
+  container_definitions = jsonencode([
+    {
+      name      = "tik-tak-toe-backend-container"
+      image     = join("", aws_ecr_repository.repo.repository_url, "/tik-tak-toe-backend:latest")
+      cpu       = 256
+      memory    = 512
+      essential = true
+      environment = [
+        {
+          name  = "PORT"
+          value = "8080"
+        }
+      ]
+      portMappings = [
+        {
+          containerPort = 8080
+          hostPort      = 8080
+          protocol      = "tcp"
+        }
+      ]
+    }
+  ])
+}
+
+resource "aws_ecs_service" "tik-tak-toe-backend_service" {
+  name            = "tik-tak-toe-backend-service"
+  cluster         = "tik-tak-toe"
+  task_definition = aws_ecs_task_definition.tik-tak-toe-backend_task.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = [aws_subnet.fg_public.id]
+    security_groups  = [aws_security_group.fg_sg.id]
+    assign_public_ip = true
+  }
+
+  depends_on = [aws_ecs_task_definition.tik-tak-toe-backend_task]
+}
+
+resource "aws_ecs_task_definition" "tik-tak-toe-frontend_task" {
+  depends_on = [null_resource.push_frontend_image]
+
+  family                   = "tik-tak-toe-frontend-task"
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+
+  container_definitions = jsonencode([
+    {
+      name      = "tik-tak-toe-frontend-container"
+      image     = join("", aws_ecr_repository.repo.repository_url, "/tik-tak-toe-frontend:latest")
+      cpu       = 256
+      memory    = 512
+      essential = true
+      environment = [
+        {
+          name  = "PORT"
+          value = "80"
+        }
+      ]
+      portMappings = [
+        {
+          containerPort = 80
+          hostPort      = 80
+          protocol      = "tcp"
+        }
+      ]
+    }
+  ])
+}
+
+resource "aws_ecs_service" "tik-tak-toe-frontend_service" {
+  name            = "tik-tak-toe-frontend-service"
+  cluster         = "tik-tak-toe"
+  task_definition = aws_ecs_task_definition.tik-tak-toe-frontend_task.arn
+  desired_count   = 1
+  launch_type     = "FARGATE"
+
+  network_configuration {
+    subnets          = [aws_subnet.fg_public.id]
+    security_groups  = [aws_security_group.fg_sg.id]
+    assign_public_ip = true
+  }
+
+  depends_on = [aws_ecs_task_definition.tik-tak-toe-frontend_task]
 }
