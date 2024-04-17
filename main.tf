@@ -95,14 +95,14 @@ resource "aws_s3_object" "s3_frontend_object" {
   bucket = aws_s3_bucket.tik-tak-toe-bucket.id
   key    = "frontend.zip"
   source = "frontend.zip"
-  etag   = filemd5("frontend.zip")
+  # etag   = filemd5("frontend.zip")
 }
 
 resource "aws_s3_object" "s3_backend_object" {
   bucket = aws_s3_bucket.tik-tak-toe-bucket.id
   key    = "backend.zip"
   source = "backend.zip"
-  etag   = filemd5("frontend.zip")
+  # etag   = filemd5("backend.zip")
 }
 
 resource "aws_elastic_beanstalk_application" "frontend_app" {
@@ -168,13 +168,13 @@ resource "aws_elastic_beanstalk_environment" "frontend_env" {
   setting {
     namespace = "aws:elasticbeanstalk:application:environment"
     name      = "PORT"
-    value     = "80"
+    value     = "8080"
   }
 
   setting {
     namespace = "aws:elasticbeanstalk:application:environment"
     name      = "VITE_WS_URL"
-    value     = "ws://54.147.161.150:4000"
+    value     = "ws://52.55.237.177:4000"
   }
 }
 
