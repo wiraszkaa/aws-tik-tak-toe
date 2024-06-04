@@ -1,12 +1,21 @@
 import { randomUUID } from "crypto";
 import { createServer } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import { CognitoJwtVerifier } from "aws-jwt-verify";
 import dotenv from "dotenv";
 import Duel from "./Duel";
 
 dotenv.config();
 
 const port = process.env.PORT || "4000";
+const userPoolId = process.env.USER_POOL_ID!;
+const clientId = process.env.CLIENT_ID!;
+
+const verifier = CognitoJwtVerifier.create({
+  userPoolId,
+  clientId,
+  tokenUse: "access",
+});
 
 const app = createServer();
 const wsServer = new WebSocketServer({ server: app });
@@ -44,23 +53,14 @@ function notifyWin(duel: Duel, winner: boolean) {
   if (p2) {
     p2.socket.send(JSON.stringify({ type: "win", data: !winner }));
   }
+
+  duels = duels.filter((currDuel) => currDuel !== duel);
 }
 
 wsServer.on("connection", (socket: WebSocket) => {
   const userId = randomUUID();
   console.log(`Client ${userId} connected`);
   clients.set(userId, { socket });
-
-  let duel = duels.find((duel) => !duel.getPlayer2());
-  if (duel) {
-    duel.setPlayer2(userId);
-    notifyPlayers(duel);
-    console.log("Assigning to duel");
-  } else {
-    console.log("Creating duel");
-    duel = new Duel(userId);
-    duels.push(duel);
-  }
 
   socket
     .on("close", () => {
@@ -75,9 +75,16 @@ wsServer.on("connection", (socket: WebSocket) => {
       const winner = duel.surrender(userId);
       notifyWin(duel, winner === 1);
     })
-    .on("message", (message) => {
+    .on("message", async (message) => {
       const data = JSON.parse(message.toString());
-      console.log("Data received:\n", data);
+      console.log("Data received:\n", { type: data.type, data: data.data });
+
+      try {
+        const payload = await verifier.verify(data.token);
+      } catch (error: any) {
+        console.log(error.message);
+        return;
+      }
 
       const duel = duels.find(
         (duel) => duel.getPlayer1() === userId || duel.getPlayer2() === userId
@@ -89,11 +96,24 @@ wsServer.on("connection", (socket: WebSocket) => {
         const winner = duel.getWinnner();
         if (winner) {
           notifyWin(duel, winner === 1);
-          duels = duels.filter((currDuel) => currDuel !== duel);
         }
       } else if (data.type === "name") {
         clients.get(userId)!.name = data.data;
         if (duel) notifyPlayers(duel);
+      } else if (data.type === "play" && !duel) {
+        let duel = duels.find((duel) => !duel.getPlayer2());
+        if (duel) {
+          duel.setPlayer2(userId);
+          notifyPlayers(duel);
+          console.log("Assigning to duel");
+        } else {
+          console.log("Creating duel");
+          duel = new Duel(userId);
+          duels.push(duel);
+        }
+      } else if (data.type === "surrender" && duel) {
+        const winner = duel.surrender(userId);
+        notifyWin(duel, winner === 1);
       }
     });
 });

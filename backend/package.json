@@ -12,14 +12,15 @@
   "author": "Jakub Wiraszka",
   "license": "ISC",
   "dependencies": {
+    "aws-jwt-verify": "^4.0.1",
     "dotenv": "^16.4.5",
     "ws": "^8.16.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.25",
     "@types/ws": "^8.5.10",
-    "typescript": "^5.4.2",
     "nodemon": "^3.1.0",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.2"
   }
 }

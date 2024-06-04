@@ -1,20 +1,34 @@
 import { useEffect, useState } from "react";
-import LoginDialog from "./UI/LoginDialog";
+import LoginDialog, { UserPool } from "./UI/LoginDialog";
 import { Toolbar, AppBar, Typography, Button, Stack } from "@mui/material";
 import GameGrid from "./components/GameGrid";
 import useWebSocket from "react-use-websocket";
+import { User } from "./domain/domain";
 
 const WS_URL = import.meta.env.VITE_WS_URL;
 
 function App() {
-  const [user, setUser] = useState("");
+  const [user, setUser] = useState<User>();
   const [values, setValues] = useState([]);
   const [enemy, setEnemy] = useState("");
   const [turn, setTurn] = useState(false);
+  const [playing, setPlaying] = useState(false);
+
   const { sendJsonMessage, lastJsonMessage } = useWebSocket(WS_URL, {
     share: true,
     shouldReconnect: () => true,
   });
+
+  const handleLogout = () => {
+    sendJsonMessage({ type: "surrender", token: user?.token });
+    UserPool.getCurrentUser()?.signOut();
+    setUser(undefined);
+  };
+
+  const handlePlay = () => {
+    setPlaying(true);
+    sendJsonMessage({ type: "play", token: user?.token });
+  };
 
   useEffect(() => {
     const message: any = lastJsonMessage;
@@ -31,13 +45,14 @@ function App() {
       case "win":
         alert(message.data ? "You win!" : "You lose!");
         setEnemy("");
+        setPlaying(false);
         break;
     }
   }, [lastJsonMessage]);
 
   useEffect(() => {
     if (user) {
-      sendJsonMessage({ type: "name", data: user });
+      sendJsonMessage({ type: "name", data: user.name, token: user.token });
     }
   }, [user]);
 
@@ -54,12 +69,17 @@ function App() {
             <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
               Tik Tak Toe
             </Typography>
-            <Button color="inherit" onClick={() => setUser("")}>
-              Change Name
+            <Button color="inherit" onClick={handleLogout}>
+              Logout
             </Button>
           </Toolbar>
         </AppBar>
         {!enemy && <Typography variant="h4">Waiting for enemy...</Typography>}
+        {!playing && (
+          <Button onClick={handlePlay} variant="contained">
+            Play
+          </Button>
+        )}
         {enemy && (
           <Stack justifyContent="center" alignItems="center" pt={5}>
             <Typography>
@@ -71,7 +91,12 @@ function App() {
             <GameGrid
               values={values}
               onClick={(row, column) =>
-                sendJsonMessage({ type: "move", row, column })
+                sendJsonMessage({
+                  type: "move",
+                  row,
+                  column,
+                  token: user?.token,
+                })
               }
             />
           </Stack>
